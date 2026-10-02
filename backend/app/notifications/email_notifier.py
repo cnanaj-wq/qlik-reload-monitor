@@ -13,6 +13,22 @@ from ..config import EmailConfig, SmtpConfig
 from .base import DeliveryError, Message, PermanentDeliveryError
 
 
+MAX_ERROR_LENGTH = 300
+
+
+def redact(text: str, secrets: list[str]) -> str:
+    """Message d'erreur affichable : secrets masqués, une seule ligne, longueur bornée.
+
+    Les messages d'échec sont stockés dans notification_log et exposés par l'API :
+    ils ne doivent jamais contenir le mot de passe ni l'identifiant SMTP, même si
+    le serveur ou une exception les recopie.
+    """
+    out = " ".join(str(text).split())
+    for secret in sorted({s for s in secrets if s and len(s) >= 3}, key=len, reverse=True):
+        out = out.replace(secret, "***")
+    return out[:MAX_ERROR_LENGTH]
+
+
 class Transport(Protocol):
     def send(self, msg: EmailMessage) -> None: ...
 
@@ -50,7 +66,10 @@ class SmtpTransport:
             raise PermanentDeliveryError(
                 f"authentification SMTP refusée ({exc.smtp_code})") from None
         except (smtplib.SMTPException, OSError) as exc:
-            raise DeliveryError(f"{type(exc).__name__}: {exc}") from None
+            raise DeliveryError(self.redact(f"{type(exc).__name__}: {exc}")) from None
+
+    def redact(self, text: str) -> str:
+        return redact(text, [self.cfg.password, self.cfg.username])
 
 
 class EmailNotifier:
@@ -88,3 +107,7 @@ class EmailNotifier:
 
     def deliver(self, message: Message, recipient: str) -> None:
         self.transport.send(self.build(message, recipient))
+
+    def redact(self, text: str) -> str:
+        """Masque les secrets SMTP de la configuration dans un message d'erreur."""
+        return redact(text, [self.cfg.smtp.password, self.cfg.smtp.username])

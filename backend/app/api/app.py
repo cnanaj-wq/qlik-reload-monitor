@@ -111,6 +111,15 @@ class NotificationsInfo(BaseModel):
     email_dry_run: bool
 
 
+class EmailStatusOut(BaseModel):
+    """État de la configuration email, sans secret ni adresse."""
+    enabled: bool
+    dry_run: bool
+    # disabled | dry_run | ready (envoi réel possible) | incomplete (envoi réel impossible)
+    readiness: Literal["disabled", "dry_run", "ready", "incomplete"]
+    problems: list[str]
+
+
 class Health(BaseModel):
     status: Literal["ok"]
     version: str
@@ -120,6 +129,26 @@ class Health(BaseModel):
     schema_version: int
     last_seq: int
     time: datetime
+
+
+# ------------------------------------------------------------ interface web
+
+class FrontendFiles(StaticFiles):
+    """Fichiers de `frontend/dist` avec une politique de cache adaptée.
+
+    - `assets/*` : noms contenant une empreinte (hash Vite) -> cache long, immuable ;
+    - le reste (index.html) : revalidé à chaque chargement, pour qu'une nouvelle
+      version de l'interface soit prise en compte sans vider le cache du navigateur.
+    """
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            if path.startswith("assets/"):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            else:
+                response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 # ---------------------------------------------------------------- application
@@ -151,6 +180,14 @@ def create_app(config: AppConfig) -> FastAPI:
                                                       email_dry_run=email.dry_run),
                       database=str(repo.db_path), schema_version=repo.schema_version(),
                       last_seq=repo.max_seq(), time=datetime.now())
+
+    @app.get("/api/notifications/status", response_model=EmailStatusOut,
+             tags=["notifications"],
+             summary="Configuration email : prête, dry-run, désactivée ou incomplète (sans secret)")
+    def notifications_status() -> EmailStatusOut:
+        email = config.notifications.email
+        return EmailStatusOut(enabled=email.enabled, dry_run=email.dry_run,
+                              readiness=email.readiness, problems=email.delivery_problems())
 
     @app.get("/api/reloads/current", response_model=Optional[ReloadStateOut],
              tags=["reloads"],
@@ -232,7 +269,8 @@ def create_app(config: AppConfig) -> FastAPI:
     # Interface compilée (frontend/dist) servie à la racine, APRÈS les routes API.
     dist = Path(srv.frontend_dist)
     if (dist / "index.html").is_file():
-        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+        app.mount("/", FrontendFiles(directory=dist, html=True), name="frontend")
+    app.state.frontend_served = (dist / "index.html").is_file()
 
     return app
 

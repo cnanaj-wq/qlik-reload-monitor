@@ -47,7 +47,7 @@ def write_notif_config(tmp_path):
         "mode: demo\n"
         "database:\n  path: './data/m.db'\n"
         "notifications:\n  email:\n    enabled: true\n    dry_run: true\n"
-        "    recipients: ['${ALERT_EMAIL_RECIPIENT}']\n",
+        "    recipients: ['alertes@exemple.fr']\n",
         encoding="utf-8")
     return cfg
 
@@ -55,7 +55,7 @@ def write_notif_config(tmp_path):
 def test_cli_scenario_erreur_affiche_l_email_dry_run(tmp_path, capsys):
     assert main(["error", "--speed", "1000", "--config", str(write_notif_config(tmp_path))]) == 0
     out = capsys.readouterr().out
-    assert "DRY RUN (non envoyée) → ${ALERT_EMAIL_RECIPIENT}" in out
+    assert "DRY RUN (non envoyée) → alertes@exemple.fr" in out
     assert "Sujet : #Error Reload DEMO | Ventes |" in out
     assert "ORA-00942" in out and "Votre Agent Claude" in out
     row = sqlite3.connect(tmp_path / "data" / "m.db").execute(
