@@ -54,14 +54,27 @@ def _show(message) -> None:
 def cmd_test_email(cfg) -> int:
     e = cfg.notifications.email
     _print_config(cfg)
+    problems = e.delivery_problems()
+    if problems:
+        # Envoi réel demandé : on vérifie tout AVANT la moindre connexion SMTP.
+        print("❌ Configuration incomplète, aucun envoi tenté :")
+        for p in problems:
+            print(f"   - {p}")
+        return 1
     if not e.recipients:
-        print("❌ Aucun destinataire configuré (notifications.email.recipients).")
+        hint = (" (variable d'environnement ALERT_EMAIL_RECIPIENT absente)"
+                if "ALERT_EMAIL_RECIPIENT" in e.missing_env else "")
+        print(f"❌ Aucun destinataire configuré (notifications.email.recipients){hint}.")
         return 1
     message = build_test_message(datetime.now(), recipients=e.recipients, smtp_host=e.smtp.host)
     _show(message)
     if e.dry_run:
         print("EMAIL DRY RUN : rien n'a été envoyé. Mettre dry_run: false pour un envoi réel.")
         return 0
+    if not e.enabled:
+        print("❌ Notifications email désactivées (notifications.email.enabled: false) : "
+              "aucun envoi.")
+        return 1
     notifier = EmailNotifier(e)
     ok = True
     for recipient in e.recipients:
@@ -73,9 +86,12 @@ def cmd_test_email(cfg) -> int:
                 error = None
                 break
             except DeliveryError as exc:
-                error = str(exc)
+                error = notifier.redact(str(exc))
                 if isinstance(exc, PermanentDeliveryError):
                     break
+            except Exception as exc:  # noqa: BLE001 - message lisible, jamais de trace brute
+                error = notifier.redact(f"{type(exc).__name__}: {exc}")
+                break
         if error:
             ok = False
             print(f"❌ Échec pour {recipient} : {error}")

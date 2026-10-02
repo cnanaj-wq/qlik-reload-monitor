@@ -97,6 +97,48 @@ class EmailConfig(_Strict):
     def missing_env(self) -> list[str]:
         return list(self._missing_env)
 
+    def delivery_problems(self) -> list[str]:
+        """Ce qui empêcherait un envoi réel, en clair et sans aucun secret.
+
+        Vide si l'email est désactivé ou en dry_run (rien ne sera envoyé).
+        Utilisé au démarrage (avertissement), par /health et par `test-email`.
+        """
+        if not self.enabled or self.dry_run:
+            return []
+        missing = set(self._missing_env)
+
+        def hint(var: str) -> str:
+            return f" (variable d'environnement {var} absente)" if var in missing else ""
+
+        problems: list[str] = []
+        if not self.recipients:
+            problems.append("aucun destinataire (notifications.email.recipients)"
+                            + hint("ALERT_EMAIL_RECIPIENT"))
+        if not self.smtp.host:
+            problems.append("serveur SMTP non défini (notifications.email.smtp.host)"
+                            + hint("SMTP_HOST"))
+        if not self.from_address:
+            problems.append("adresse d'expéditeur non définie (notifications.email.from_address)"
+                            + hint("SMTP_FROM"))
+        elif not _EMAIL_RE.match(self.from_address):
+            problems.append("adresse d'expéditeur invalide (notifications.email.from_address)")
+        if self.smtp.username and not self.smtp.password:
+            problems.append("mot de passe SMTP absent (notifications.email.smtp.password)"
+                            + hint("SMTP_PASSWORD"))
+        if self.smtp.password and not self.smtp.username:
+            problems.append("mot de passe SMTP défini sans identifiant "
+                            "(notifications.email.smtp.username)" + hint("SMTP_USERNAME"))
+        return problems
+
+    @property
+    def readiness(self) -> str:
+        """disabled | dry_run | ready | incomplete"""
+        if not self.enabled:
+            return "disabled"
+        if self.dry_run:
+            return "dry_run"
+        return "incomplete" if self.delivery_problems() else "ready"
+
 
 class NotificationsConfig(_Strict):
     email: EmailConfig = Field(default_factory=EmailConfig)
@@ -190,5 +232,17 @@ def _prepare_notifications(raw: dict) -> list[str]:
             return [expand(v) for v in value]
         return value
 
-    raw["notifications"] = expand(section)
+    expanded = expand(section)
+    # Un destinataire « ${VARIABLE} » dont la variable est absente est retiré (et
+    # signalé via missing_env) au lieu de faire échouer tout le chargement : le
+    # monitor doit démarrer même si l'email n'est pas encore configuré.
+    email_raw = section.get("email")
+    email_exp = expanded.get("email")
+    if isinstance(email_raw, dict) and isinstance(email_exp, dict):
+        before, after = email_raw.get("recipients"), email_exp.get("recipients")
+        if isinstance(before, list) and isinstance(after, list):
+            email_exp["recipients"] = [
+                r for r, orig in zip(after, before)
+                if r != "" or not (isinstance(orig, str) and _ENV_REF.search(orig))]
+    raw["notifications"] = expanded
     return sorted(set(missing))

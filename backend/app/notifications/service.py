@@ -194,7 +194,9 @@ class NotificationService:
             if attempt < self.max_attempts:
                 self._sleep(self.retry_delay)
 
-        error = (error or "échec inconnu")[:500]
+        error = error or "échec inconnu"
+        redactor = getattr(notifier, "redact", None)
+        error = redactor(error) if callable(redactor) else error[:500]
         log.error("notification_failed", extra={"reload_id": reload_id, "channel": ch,
                                                 "error": error})
         self._finish(conn, reload_id, ch, recipient, status="FAILED",
