@@ -28,6 +28,27 @@ export function ErrorState({ title, children }: { title: string; children?: Reac
   );
 }
 
+/**
+ * Bandeau « flux temps réel interrompu » : l'API répond, seul le flux SSE est coupé.
+ * Les données affichées sont conservées ; la reprise repart du dernier événement reçu.
+ */
+export function StreamInterruptedBanner({ lastEventAt }: { lastEventAt: string | null }) {
+  return (
+    <div
+      role="status"
+      data-testid="stream-banner"
+      className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-warn/40 bg-warn/10 px-6 py-2"
+    >
+      <span className="font-semibold text-warn">○ Flux temps réel interrompu</span>
+      <span className="text-muted">
+        API joignable · données affichées conservées · dernier événement reçu :{" "}
+        <span className="num text-fg">{lastEventAt ? fmtTime(lastEventAt) : "aucun"}</span>
+      </span>
+      <span className="text-muted">Reprise automatique sans perte depuis cet événement…</span>
+    </div>
+  );
+}
+
 /** Bandeau « API indisponible » : les dernières données restent affichées dessous. */
 export function ApiUnavailableBanner({ lastEventAt }: { lastEventAt: string | null }) {
   return (

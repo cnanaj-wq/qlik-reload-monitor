@@ -133,6 +133,14 @@ export interface Health {
   notifications: { email_enabled: boolean; email_dry_run: boolean };
 }
 
+/** GET /api/notifications/status : configuration email, sans secret. */
+export interface EmailStatus {
+  enabled: boolean;
+  dry_run: boolean;
+  readiness: "disabled" | "dry_run" | "ready" | "incomplete";
+  problems: string[];
+}
+
 export interface HistoryFilters {
   platform: Platform | "";
   app: string;
