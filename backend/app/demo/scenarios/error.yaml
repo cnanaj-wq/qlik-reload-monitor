@@ -1,0 +1,38 @@
+# Le reload échoue pendant l'extraction de VENTES (table SQL introuvable).
+# Les sections suivantes ne sont pas exécutées, VENTES.qvd n'est pas écrit.
+name: error
+description: Reload en erreur de l'application Ventes (table source introuvable)
+app_id: demo-app-ventes
+app_name: Ventes
+
+sections:
+  - name: PARAMETRES
+    duration_seconds: 1.2
+    warnings:
+      - "Variable vDateDebut non définie : valeur par défaut utilisée"
+
+  - name: DIMENSIONS
+    tables:
+      - name: CLIENTS
+        rows: 42318
+        duration_seconds: 3
+        progress_steps: 3
+        store: {qvd: CLIENTS.qvd, size_mb: 4.6, chunks: 4, chunk_interval_seconds: 1}
+
+  - name: FAITS
+    tables:
+      - name: VENTES
+        rows: 1842556
+        duration_seconds: 37
+        progress_steps: 5
+        error:
+          message: "SQL##f - SqlState: 42S02, ErrorCode: 942, ErrorMsg: ORA-00942: table or view does not exist"
+          at_fraction: 0.4
+        store: {qvd: VENTES.qvd, size_mb: 31.8, chunks: 8, chunk_interval_seconds: 1}
+
+  - name: AGREGATS
+    tables:
+      - name: VENTES_MENSUELLES
+        rows: 1440
+        duration_seconds: 2
+        store: {qvd: VENTES_MENSUELLES.qvd, size_mb: 0.2, chunks: 1}

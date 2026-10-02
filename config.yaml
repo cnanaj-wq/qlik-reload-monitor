@@ -1,0 +1,60 @@
+# Qlik Reload Monitor — configuration
+# Les chemins relatifs sont résolus par rapport au dossier de ce fichier.
+
+mode: demo            # demo | live
+
+qlik:
+  # Dossiers des script logs Qlik Sense (utilisés en mode live, phase ultérieure)
+  log_paths:
+    - "C:/ProgramData/Qlik/Sense/Log/Script"
+
+qvd:
+  # Dossiers de QVD surveillés en lecture seule (mode live)
+  directories:
+    - "D:/Qlik/QVD"
+  # Extensions surveillées
+  extensions: [".qvd"]
+
+monitoring:
+  # Intervalle entre deux mesures de taille (os.stat), en secondes
+  polling_interval_seconds: 1
+  # Nombre de mesures identiques consécutives avant de considérer un QVD stabilisé
+  stable_after_measures: 3
+  # Variation minimale (octets) pour enregistrer une nouvelle mesure
+  min_delta_bytes: 1
+
+database:
+  path: "./data/qlik_monitor.db"
+
+server:
+  host: "127.0.0.1"          # local uniquement : l'API n'a pas d'authentification
+  port: 8000
+  sse_poll_seconds: 0.5      # lecture des nouveaux événements dans SQLite
+  sse_heartbeat_seconds: 15  # commentaire SSE envoyé si aucun événement
+  sse_batch_size: 500        # événements max envoyés par lecture
+
+demo:
+  # Seul dossier dans lequel le simulateur a le droit d'écrire
+  output_dir: "./demo_data"
+
+notifications:
+  email:
+    # Email envoyé une seule fois par reload terminé en ERROR.
+    enabled: true
+    # dry_run: true -> le message est construit et affiché, RIEN n'est envoyé.
+    # Passer à false pour un envoi réel (voir README : variables SMTP_*).
+    dry_run: true
+    recipients:
+      - "${ALERT_EMAIL_RECIPIENT}"
+    from_name: "Qlik Reload Monitor"
+    from_address: "${SMTP_FROM}"
+    max_attempts: 3            # au maximum 3 tentatives par destinataire
+    retry_delay_seconds: 2
+    smtp:
+      # Secrets UNIQUEMENT via variables d'environnement (jamais en clair ici).
+      host: "${SMTP_HOST}"
+      port: 587
+      username: "${SMTP_USERNAME}"
+      password: "${SMTP_PASSWORD}"
+      use_tls: true            # STARTTLS
+

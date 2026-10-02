@@ -1,0 +1,40 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend
+node_modules/
+dist/
+coverage/
+
+# Runtime persistence / history
+data/
+demo_data/
+logs/
+log/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary repair / cleanup scripts
+repair-*.py
+fix-*.py

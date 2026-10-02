@@ -1,0 +1,33 @@
+# Même application, mais l'extraction SQL de VENTES est ~2x plus longue
+# et l'écriture du QVD ralentit. Un warning de clé synthétique est émis.
+name: slow
+description: Reload lent de l'application Ventes (extraction SQL dégradée)
+app_id: demo-app-ventes
+app_name: Ventes
+
+sections:
+  - name: PARAMETRES
+    duration_seconds: 1.2
+
+  - name: DIMENSIONS
+    tables:
+      - name: CLIENTS
+        rows: 42501
+        duration_seconds: 3.5
+        progress_steps: 3
+        store: {qvd: CLIENTS.qvd, size_mb: 4.6, chunks: 4, chunk_interval_seconds: 1}
+      - name: PRODUITS
+        rows: 8426
+        duration_seconds: 2
+        progress_steps: 2
+        warnings:
+          - "Clé synthétique créée : $Syn 1 (CodeProduit, CodeFamille)"
+        store: {qvd: PRODUITS.qvd, size_mb: 0.8, chunks: 2, chunk_interval_seconds: 1}
+
+  - name: FAITS
+    tables:
+      - name: VENTES
+        rows: 1858902
+        duration_seconds: 82
+        progress_steps: 8
+        store: {qvd: VENTES.qvd, size_mb: 32.1, chunks: 8, chunk_interval_seconds: 2.5}

@@ -1,0 +1,32 @@
+# Reload nominal : 3 sections, 3 tables, 3 QVD, aucun warning.
+# Tailles de QVD volontairement réduites (1/10 de l'exemple du cahier des
+# charges) pour limiter les écritures disque ; modifiables ci-dessous.
+name: successful
+description: Reload nominal de l'application Ventes
+app_id: demo-app-ventes
+app_name: Ventes
+
+sections:
+  - name: PARAMETRES
+    duration_seconds: 1.2
+
+  - name: DIMENSIONS
+    tables:
+      - name: CLIENTS
+        rows: 42318
+        duration_seconds: 3
+        progress_steps: 3
+        store: {qvd: CLIENTS.qvd, size_mb: 4.6, chunks: 4, chunk_interval_seconds: 1}
+      - name: PRODUITS
+        rows: 8426
+        duration_seconds: 2
+        progress_steps: 2
+        store: {qvd: PRODUITS.qvd, size_mb: 0.8, chunks: 2, chunk_interval_seconds: 1}
+
+  - name: FAITS
+    tables:
+      - name: VENTES
+        rows: 1842556
+        duration_seconds: 37
+        progress_steps: 5
+        store: {qvd: VENTES.qvd, size_mb: 31.8, chunks: 8, chunk_interval_seconds: 1}
