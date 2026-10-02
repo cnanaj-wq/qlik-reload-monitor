@@ -8,19 +8,37 @@ const API = process.env.QRM_API ?? "http://127.0.0.1:8000";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+
   server: {
     host: "127.0.0.1",
     port: 5173,
     proxy: {
-      "/api": { target: API, changeOrigin: false },
-      "/health": { target: API, changeOrigin: false },
+      "/api": {
+        target: API,
+        changeOrigin: false,
+      },
+      "/health": {
+        target: API,
+        changeOrigin: false,
+      },
     },
   },
-  build: { outDir: "dist", sourcemap: false },
+
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+  },
+
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     restoreMocks: true,
+
+    // Windows: évite les timeouts de workers Vitest observés avec
+    // l'exécution parallèle des fichiers de tests.
+    pool: "threads",
+    maxWorkers: 1,
+    fileParallelism: false,
   },
 });

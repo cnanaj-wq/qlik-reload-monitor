@@ -226,7 +226,7 @@ describe("historique", () => {
 describe("notifications", () => {
   it("notification envoyée", () => {
     render(<NotificationStatus records={[notification()]} />);
-    expect(screen.getByTestId("notification")).toHaveTextContent("✓ envoyée à ${ALERT_EMAIL_RECIPIENT} à 22:47:23");
+    expect(screen.getByTestId("notification")).toHaveTextContent("✓ envoyée à alertes@exemple.fr à 22:47:23");
   });
 
   it("notification échouée", () => {
@@ -236,7 +236,7 @@ describe("notifications", () => {
       />,
     );
     const el = screen.getByTestId("notification");
-    expect(el).toHaveTextContent("✕ échec d'envoi à ${ALERT_EMAIL_RECIPIENT} (3 tentatives)");
+    expect(el).toHaveTextContent("✕ échec d'envoi à alertes@exemple.fr (3 tentatives)");
     expect(el).toHaveTextContent("connexion perdue");
   });
 

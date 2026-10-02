@@ -1,4 +1,4 @@
-﻿"""Tests des notifications email sur reload en erreur (Ã©tape 5)."""
+"""Tests des notifications email sur reload en erreur (étape 5)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ MIB = 1024 * 1024
 # ------------------------------------------------------------------ outils
 
 class FakeTransport:
-    """Transport SMTP simulÃ© : enregistre les messages, peut Ã©chouer N fois."""
+    """Transport SMTP simulé : enregistre les messages, peut échouer N fois."""
 
     def __init__(self, fail_times: int = 0, exc: Optional[Exception] = None):
         self.sent = []
@@ -47,7 +47,7 @@ class FakeTransport:
 
 
 def email_cfg(**kw) -> EmailConfig:
-    base = dict(enabled=True, dry_run=False, recipients=["${ALERT_EMAIL_RECIPIENT}"],
+    base = dict(enabled=True, dry_run=False, recipients=["alertes@exemple.fr"],
                 from_address="monitor@exemple.fr")
     base.update(kw)
     return EmailConfig(**base)
@@ -80,11 +80,11 @@ class Env:
             "SELECT * FROM notification_log ORDER BY id")]
 
     def error_reload(self, rid="R1", platform=Platform.QLIK_SENSE, app="VENTES"):
-        """Reload rÃ©aliste en erreur : warning, VENTES.qvd en Ã©criture, ORA-00942."""
+        """Reload réaliste en erreur : warning, VENTES.qvd en écriture, ORA-00942."""
         kw = dict(rid=rid, platform=platform, app=app)
         self.ev(ET.RELOAD_START, 0, **kw)
         self.ev(ET.WARNING, 2, status=S.WARNING, section="PARAMETRES",
-                message="Variable vDateDebut non dÃ©finie", **kw)
+                message="Variable vDateDebut non définie", **kw)
         self.ev(ET.SECTION_START, 10, section="FAITS", **kw)
         self.ev(ET.QVD_WRITE_START, 20, section="FAITS", qvd="VENTES.qvd",
                 qvd_path="D:/QVD/VENTES.qvd", **kw)
@@ -95,7 +95,7 @@ class Env:
         self.ev(ET.TABLE_PROGRESS, 50, section="FAITS", table="VENTES", rows=737_022, **kw)
         self.ev(ET.ERROR, 79, status=S.ERROR, section="FAITS", table="VENTES", rows=737_022,
                 message="ORA-00942: table or view does not exist", **kw)
-        self.ev(ET.RELOAD_END, 79, status=S.ERROR, message="Le rechargement a Ã©chouÃ©", **kw)
+        self.ev(ET.RELOAD_END, 79, status=S.ERROR, message="Le rechargement a échoué", **kw)
 
     def close(self):
         self.conn.close()
@@ -112,14 +112,14 @@ def body_of(msg) -> str:
     return msg.get_content()
 
 
-# ------------------------------------------------------------- dÃ©clenchement
+# ------------------------------------------------------------- déclenchement
 
 def test_email_sur_reload_end_error(env):
     env.error_reload()
     assert len(env.transport.sent) == 1
     [row] = env.log_rows()
     assert (row["reload_id"], row["channel"], row["recipient"], row["status"],
-            row["attempts"]) == ("R1", "email", "${ALERT_EMAIL_RECIPIENT}", "SENT", 1)
+            row["attempts"]) == ("R1", "email", "alertes@exemple.fr", "SENT", 1)
     assert row["sent_at"] is not None and row["error_message"] is None
 
 
@@ -131,7 +131,7 @@ def test_aucune_notification_sur_success(env):
 
 def test_aucune_notification_sur_warning(env):
     env.ev(ET.RELOAD_START, 0)
-    env.ev(ET.WARNING, 3, status=S.WARNING, message="clÃ© synthÃ©tique")
+    env.ev(ET.WARNING, 3, status=S.WARNING, message="clé synthétique")
     env.ev(ET.RELOAD_END, 10, status=S.SUCCESS)
     assert env.engine.get_reload_state("R1").status is S.WARNING
     assert env.transport.sent == [] and env.log_rows() == []
@@ -145,23 +145,23 @@ def test_erreur_intermediaire_sans_fin_ne_notifie_pas(env):
 
 
 def test_fin_success_apres_erreur_notifie_car_statut_final_error(env):
-    """RÃ¨gle documentÃ©e : le statut final du reload fait foi (ERROR collant)."""
+    """Règle documentée : le statut final du reload fait foi (ERROR collant)."""
     env.ev(ET.RELOAD_START, 0)
-    env.ev(ET.ERROR, 5, status=S.ERROR, message="ErrorMode=0 : le script a continuÃ©")
+    env.ev(ET.ERROR, 5, status=S.ERROR, message="ErrorMode=0 : le script a continué")
     env.ev(ET.RELOAD_END, 10, status=S.SUCCESS)
     assert len(env.transport.sent) == 1
 
 
-# -------------------------------------------------------------- unicitÃ©
+# -------------------------------------------------------------- unicité
 
 def test_un_seul_email_par_reload(env, tmp_path):
     env.error_reload()
-    # Fin reÃ§ue en double, erreur arrivÃ©e en retard, retraitement manuel :
-    env.ev(ET.RELOAD_END, 79, status=S.ERROR, message="Le rechargement a Ã©chouÃ©")
+    # Fin reçue en double, erreur arrivée en retard, retraitement manuel :
+    env.ev(ET.RELOAD_END, 79, status=S.ERROR, message="Le rechargement a échoué")
     env.ev(ET.ERROR, 90, status=S.ERROR, message="erreur tardive")
     env.service.process_reload("R1")
     env.service.process_reload("R1")
-    # RedÃ©marrage : nouveau service sur la mÃªme base.
+    # Redémarrage : nouveau service sur la même base.
     other = NotificationService(env.db, [env.notifier], sleep=lambda s: None)
     other.process_reload("R1")
     other.catch_up()
@@ -173,7 +173,7 @@ def test_unicite_garantie_par_la_base(env):
     env.error_reload()
     with pytest.raises(sqlite3.IntegrityError):
         env.conn.execute("INSERT INTO notification_log (reload_id, channel, recipient, status,"
-                         " created_at) VALUES ('R1','email','${ALERT_EMAIL_RECIPIENT}','PENDING','t')")
+                         " created_at) VALUES ('R1','email','alertes@exemple.fr','PENDING','t')")
 
 
 def test_deux_reloads_en_erreur_deux_emails(env):
@@ -183,7 +183,7 @@ def test_deux_reloads_en_erreur_deux_emails(env):
     assert {r["reload_id"] for r in env.log_rows()} == {"R1", "R2"}
 
 
-# ---------------------------------------------------------- retry / Ã©checs
+# ---------------------------------------------------------- retry / échecs
 
 def test_retry_puis_succes(tmp_path):
     env = Env(tmp_path, transport=FakeTransport(fail_times=2))
@@ -203,7 +203,7 @@ def test_echec_smtp_apres_3_tentatives(tmp_path, caplog):
     assert "connexion perdue" in row["error_message"]
     assert env.transport.calls == 3                 # pas de retry infini
     assert env.engine.get_reload_state("R1").status is S.ERROR
-    assert env.engine.get_reload_state("R1").errors_count == 1  # pas d'erreur Qlik ajoutÃ©e
+    assert env.engine.get_reload_state("R1").errors_count == 1  # pas d'erreur Qlik ajoutée
     assert any("notification_failed" in r.message for r in caplog.records)
     env.service.process_reload("R1")                # pas de relance automatique en boucle
     assert env.transport.calls == 3
@@ -212,7 +212,7 @@ def test_echec_smtp_apres_3_tentatives(tmp_path, caplog):
 
 def test_echec_permanent_pas_de_retry(tmp_path):
     env = Env(tmp_path, transport=FakeTransport(
-        fail_times=99, exc=PermanentDeliveryError("authentification SMTP refusÃ©e (535)")))
+        fail_times=99, exc=PermanentDeliveryError("authentification SMTP refusée (535)")))
     env.error_reload()
     [row] = env.log_rows()
     assert row["status"] == "FAILED" and row["attempts"] == 1
@@ -255,18 +255,20 @@ def test_notifications_desactivees(tmp_path):
 # ---------------------------------------------------------- destinataires
 
 def test_destinataires_configures(tmp_path):
-    env = Env(tmp_path, cfg=email_cfg(recipients=["${ALERT_EMAIL_RECIPIENT}", "ops@exemple.fr"]))
+    env = Env(tmp_path, cfg=email_cfg(recipients=["alertes@exemple.fr", "ops@exemple.fr"]))
     env.error_reload()
-    assert [m["To"] for m in env.transport.sent] == ["${ALERT_EMAIL_RECIPIENT}", "ops@exemple.fr"]
+    assert [m["To"] for m in env.transport.sent] == ["alertes@exemple.fr", "ops@exemple.fr"]
     assert env.transport.sent[0]["From"] == "Qlik Reload Monitor <monitor@exemple.fr>"
-    assert {r["recipient"] for r in env.log_rows()} == {"${ALERT_EMAIL_RECIPIENT}", "ops@exemple.fr"}
+    assert {r["recipient"] for r in env.log_rows()} == {"alertes@exemple.fr", "ops@exemple.fr"}
     env.close()
 
 
-def test_destinataire_par_defaut_de_la_configuration_projet():
+def test_destinataire_par_defaut_de_la_configuration_projet(monkeypatch):
+    # config.yaml ne contient aucune adresse réelle : le destinataire vient de l'environnement.
     from pathlib import Path
+    monkeypatch.setenv("ALERT_EMAIL_RECIPIENT", "alertes@exemple.fr")
     cfg = load_config(Path(__file__).resolve().parents[2] / "config.yaml")
-    assert cfg.notifications.email.recipients == ["${ALERT_EMAIL_RECIPIENT}"]
+    assert cfg.notifications.email.recipients == ["alertes@exemple.fr"]
     assert cfg.notifications.email.dry_run is True
 
 
@@ -288,39 +290,39 @@ def test_corps_complet_qlik_sense(env):
     body = body_of(env.transport.sent[0])
     attendu = """Bonjour,
 
-Une erreur a Ã©tÃ© dÃ©tectÃ©e lors du rechargement Qlik.
+Une erreur a été détectée lors du rechargement Qlik.
 
 Plateforme : Qlik Sense
 Application : VENTES
 Reload ID : R1
-DÃ©but : 01/10/2026 22:46:02
+Début : 01/10/2026 22:46:02
 Fin : 01/10/2026 22:47:21
-DurÃ©e : 1 min 19 s
+Durée : 1 min 19 s
 
 Statut : ERROR
 
-Ã‰tape :
+Étape :
 FAITS > VENTES
 
-DerniÃ¨re table :
+Dernière table :
 VENTES
 
-Lignes chargÃ©es avant erreur :
+Lignes chargées avant erreur :
 737 022
 
-Erreur rencontrÃ©e :
+Erreur rencontrée :
 ORA-00942: table or view does not exist
 
-Warnings prÃ©cÃ©dents :
+Warnings précédents :
 1
 
 QVD courant :
 VENTES.qvd
 
-DerniÃ¨re taille observÃ©e :
+Dernière taille observée :
 16.0 MB
 
-Vous pouvez consulter le dÃ©tail complet du reload dans Qlik Reload Monitor.
+Vous pouvez consulter le détail complet du reload dans Qlik Reload Monitor.
 
 Votre Agent Claude
 """
@@ -345,19 +347,19 @@ def test_signature_obligatoire(env):
 
 def test_donnees_facultatives_absentes(env):
     env.ev(ET.RELOAD_START, 0)
-    env.ev(ET.RELOAD_END, 4, status=S.ERROR)        # aucun dÃ©tail disponible
+    env.ev(ET.RELOAD_END, 4, status=S.ERROR)        # aucun détail disponible
     body = body_of(env.transport.sent[0])
-    for label in ("Ã‰tape :", "DerniÃ¨re table :", "Lignes chargÃ©es avant erreur :",
-                  "Erreur rencontrÃ©e :", "QVD courant :", "DerniÃ¨re taille observÃ©e :"):
+    for label in ("Étape :", "Dernière table :", "Lignes chargées avant erreur :",
+                  "Erreur rencontrée :", "QVD courant :", "Dernière taille observée :"):
         assert f"{label}\nNon disponible\n" in body, label
-    assert "Warnings prÃ©cÃ©dents :\n0\n" in body
-    assert "DurÃ©e : 4.0 s" in body
+    assert "Warnings précédents :\n0\n" in body
+    assert "Durée : 4.0 s" in body
 
 
 def test_message_de_fin_utilise_si_pas_d_evenement_error(env):
     env.ev(ET.RELOAD_START, 0)
     env.ev(ET.RELOAD_END, 4, status=S.ERROR, message="Connexion ODBC perdue")
-    assert "Erreur rencontrÃ©e :\nConnexion ODBC perdue\n" in body_of(env.transport.sent[0])
+    assert "Erreur rencontrée :\nConnexion ODBC perdue\n" in body_of(env.transport.sent[0])
 
 
 def test_section_seule_sans_table(env):
@@ -365,7 +367,7 @@ def test_section_seule_sans_table(env):
     env.ev(ET.ERROR, 3, status=S.ERROR, section="PARAMETRES", message="x")
     env.ev(ET.RELOAD_END, 4, status=S.ERROR)
     body = body_of(env.transport.sent[0])
-    assert "Ã‰tape :\nPARAMETRES\n" in body and "DerniÃ¨re table :\nNon disponible\n" in body
+    assert "Étape :\nPARAMETRES\n" in body and "Dernière table :\nNon disponible\n" in body
 
 
 # ------------------------------------------------------------ persistance
@@ -377,7 +379,7 @@ def test_persistance_notification_log(env):
     assert row["created_at"] == "2026-10-01T22:51:02"
     assert row["sent_at"] == "2026-10-01T22:51:02"
     env.conn.close()
-    conn = sqlite3.connect(env.db)                  # relu aprÃ¨s fermeture
+    conn = sqlite3.connect(env.db)                  # relu après fermeture
     assert conn.execute("SELECT status FROM notification_log").fetchone()[0] == "SENT"
     conn.close()
     env.conn = open_db(env.db)
@@ -387,7 +389,7 @@ def test_persistance_notification_log(env):
 
 def test_rattrapage_recent_uniquement(tmp_path):
     env = Env(tmp_path)
-    env.engine._listeners.clear()                   # collecteur arrÃªtÃ© pendant les reloads
+    env.engine._listeners.clear()                   # collecteur arrêté pendant les reloads
     env.error_reload("ANCIEN")
     env.ev(ET.RELOAD_START, 3600, rid="RECENT")
     env.ev(ET.RELOAD_END, 3700, rid="RECENT", status=S.ERROR, message="x")
@@ -399,7 +401,7 @@ def test_rattrapage_recent_uniquement(tmp_path):
     env.close()
 
 
-# --------------------------------------------------------------- abonnÃ©s moteur
+# --------------------------------------------------------------- abonnés moteur
 
 def test_abonne_en_echec_ne_casse_pas_l_ingestion(tmp_path):
     conn = open_db(tmp_path / "m.db")
@@ -407,7 +409,7 @@ def test_abonne_en_echec_ne_casse_pas_l_ingestion(tmp_path):
     seen = []
 
     def boom(e):
-        raise RuntimeError("abonnÃ© dÃ©faillant")
+        raise RuntimeError("abonné défaillant")
     eng.add_listener(boom)
     eng.add_listener(seen.append)
     res = eng.ingest(ReloadEvent(reload_id="R", timestamp=T0, source=EventSource.DEMO,
@@ -525,7 +527,7 @@ def test_expediteur_absent():
 
 def test_cli_test_email_dry_run(tmp_path, capsys):
     p = write_cfg(tmp_path, "notifications:\n  email:\n    enabled: true\n    dry_run: true\n"
-                            "    recipients: ['${ALERT_EMAIL_RECIPIENT}']\n")
+                            "    recipients: ['alertes@exemple.fr']\n")
     assert notif_cli(["--config", str(p), "test-email"]) == 0
     out = capsys.readouterr().out
     assert "EMAIL DRY RUN" in out and "#Test Qlik Reload Monitor" in out
@@ -534,7 +536,7 @@ def test_cli_test_email_dry_run(tmp_path, capsys):
 
 def test_cli_test_email_envoi_reel_en_echec(tmp_path, capsys):
     p = write_cfg(tmp_path, "notifications:\n  email:\n    enabled: true\n    dry_run: false\n"
-                            "    recipients: ['${ALERT_EMAIL_RECIPIENT}']\n    from_address: 'a@b.fr'\n")
+                            "    recipients: ['alertes@exemple.fr']\n    from_address: 'a@b.fr'\n")
     assert notif_cli(["--config", str(p), "test-email"]) == 1
     assert "❌" in capsys.readouterr().out
 

@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { useReloadDetail } from "../hooks/useReloadHistory";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNow } from "../hooks/useNow";
+import { hasPendingNotification, useReloadDetail, type ReloadDetailData } from "../hooks/useReloadHistory";
 import { fmtBytes, fmtDateTime, fmtDuration, fmtInt, fmtTime } from "../lib/format";
 import { buildTimeline, groupBySection, type SectionGroup as Group } from "../lib/timeline";
 import { AlertsPanel } from "./Alerts";
@@ -8,6 +9,41 @@ import { TimelineEvent } from "./LiveTimeline";
 import { NotificationStatus } from "./NotificationStatus";
 import { QvdPanel } from "./QvdPanel";
 import { ErrorState, LoadingState } from "./States";
+import { elapsedMs } from "./ReloadHeader";
+
+/** Intervalle d'actualisation d'un détail encore susceptible d'évoluer. */
+export const DETAIL_POLL_MS = 3000;
+/** Relectures maximales d'un reload en ERROR sans notification (création différée). */
+const MAX_NOTIFICATION_CHECKS = 3;
+
+/** Texte affiché quand un reload n'a (pas encore) de notification email. */
+export function notificationHint(d: ReloadDetailData): string | null {
+  if (d.state.status !== "ERROR") return null;
+  if (d.state.is_running) return "Une notification sera émise à la fin du reload si son statut final reste ERROR.";
+  return "Aucune notification enregistrée pour ce reload (email désactivé, ou reload terminé avant l'activation des notifications).";
+}
+
+/**
+ * Actualise périodiquement le détail tant qu'il peut encore changer : reload en
+ * cours, notification en cours d'envoi, ou notification pas encore créée.
+ */
+function useDetailPolling(data: ReloadDetailData | null, pollMs: number, refresh: () => void): void {
+  const checks = useRef(0);
+  const running = data?.state.is_running ?? false;
+  const pending = data ? hasPendingNotification(data) : false;
+  const awaitingNotification =
+    !!data && !running && data.state.status === "ERROR" && data.notifications.length === 0;
+  const active = running || pending || (awaitingNotification && checks.current < MAX_NOTIFICATION_CHECKS);
+  useEffect(() => {
+    if (!active) return;
+    const t = setTimeout(() => {
+      if (awaitingNotification) checks.current += 1;
+      refresh();
+    }, pollMs);
+    return () => clearTimeout(t);
+    // `data` : un nouveau délai après chaque relecture.
+  }, [active, awaitingNotification, data, pollMs, refresh]);
+}
 
 interface SectionGroupProps {
   group: Group;
@@ -47,18 +83,33 @@ export function SectionGroup({ group, open, onToggle }: SectionGroupProps) {
   );
 }
 
-function SummaryItem({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function SummaryItem({ label, value, tone, hint }: { label: string; value: string; tone?: string; hint?: string }) {
   return (
-    <div>
+    <div title={hint}>
       <dt className="text-[12px] text-muted">{label}</dt>
-      <dd className={`num font-semibold ${tone ?? ""}`}>{value}</dd>
+      <dd className={`num font-semibold ${tone ?? ""}`}>
+        {value}
+        {hint && <span className="ml-1 text-[11px] font-normal text-muted">(provisoire)</span>}
+      </dd>
     </div>
   );
 }
 
 /** Détail d'une occurrence de reload, chargé uniquement à l'ouverture. */
-export function ReloadDetail({ reloadId, tick = 0 }: { reloadId: string; tick?: number }) {
-  const { data, loading, error } = useReloadDetail(reloadId, tick);
+export function ReloadDetail({
+  reloadId,
+  tick = 0,
+  pollMs = DETAIL_POLL_MS,
+}: {
+  reloadId: string;
+  tick?: number;
+  pollMs?: number;
+}) {
+  const [poll, setPoll] = useState(0);
+  const { data, loading, error } = useReloadDetail(reloadId, tick + poll);
+  const refresh = useCallback(() => setPoll((n) => n + 1), []);
+  useDetailPolling(data, pollMs, refresh);
+  const now = useNow(data?.state.is_running ?? false);
   const grouped = useMemo(
     () => (data ? groupBySection(data.events, data.state.is_running) : null),
     [data],
@@ -89,12 +140,25 @@ export function ReloadDetail({ reloadId, tick = 0 }: { reloadId: string; tick?: 
         <dl className="grid grid-cols-3 gap-x-6 gap-y-2 sm:grid-cols-6">
           <SummaryItem label="Début" value={fmtTime(st.started_at)} />
           <SummaryItem label="Fin" value={st.ended_at ? fmtTime(st.ended_at) : "en cours"} />
-          <SummaryItem label="Durée" value={fmtDuration(st.elapsed_ms)} />
-          <SummaryItem label="Total lignes" value={fmtInt(st.total_rows)} />
+          {st.is_running ? (
+            <>
+              <SummaryItem label="Durée écoulée" value={fmtDuration(elapsedMs(st, now))} />
+              <SummaryItem
+                label="Lignes à ce stade"
+                value={fmtInt(st.total_rows)}
+                hint="Valeur provisoire : le total définitif est connu à la fin du reload."
+              />
+            </>
+          ) : (
+            <>
+              <SummaryItem label="Durée" value={fmtDuration(st.elapsed_ms)} />
+              <SummaryItem label="Total lignes" value={fmtInt(st.total_rows)} />
+            </>
+          )}
           <SummaryItem label="Warnings" value={String(st.warnings_count)} tone={st.warnings_count ? "text-warn" : undefined} />
           <SummaryItem label="Errors" value={String(st.errors_count)} tone={st.errors_count ? "text-err" : undefined} />
         </dl>
-        <NotificationStatus records={data.notifications} />
+        <NotificationStatus records={data.notifications} emptyHint={notificationHint(data)} />
 
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">

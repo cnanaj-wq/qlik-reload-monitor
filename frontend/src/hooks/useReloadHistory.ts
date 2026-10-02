@@ -67,6 +67,21 @@ export interface ReloadDetailData {
 
 // Cache des détails : un reload terminé ne change plus, inutile de le recharger.
 const detailCache = new Map<string, ReloadDetailData>();
+
+/** Notification email encore susceptible d'évoluer (envoi en cours). */
+export function hasPendingNotification(d: ReloadDetailData): boolean {
+  return d.notifications.some((n) => n.status === "PENDING");
+}
+
+/**
+ * Détail définitif : reload terminé ET notification réglée. Un reload en ERROR
+ * sans notification n'est pas figé : sa ligne de notification peut être créée
+ * juste après la fin du reload.
+ */
+export function isFinalDetail(d: ReloadDetailData): boolean {
+  if (d.state.is_running || hasPendingNotification(d)) return false;
+  return !(d.state.status === "ERROR" && d.notifications.length === 0);
+}
 export function clearDetailCache(): void {
   detailCache.clear();
 }
@@ -88,7 +103,7 @@ export function useReloadDetail(reloadId: string | null, tick = 0): DetailResult
       return;
     }
     const cached = detailCache.get(reloadId);
-    if (cached && !cached.state.is_running) {
+    if (cached && isFinalDetail(cached)) {
       setState({ data: cached, loading: false, error: null });
       return;
     }
