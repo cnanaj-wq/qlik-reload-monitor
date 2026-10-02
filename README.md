@@ -297,6 +297,28 @@ The body can include:
 
 Email secrets are never stored in the repository.
 
+Email modes, shown in the UI header and returned by `GET /api/notifications/status`
+(no secret, no address):
+
+| Mode | Meaning |
+|---|---|
+| `disabled` | no email is ever sent |
+| `dry_run` | the message is built and logged, nothing is sent |
+| `ready` | real sending is configured |
+| `incomplete` | real sending is requested but impossible (missing host, sender, recipient or password) |
+
+A missing environment variable never prevents the monitor from starting: it is reported at
+startup, in the status endpoint and by the test command. SMTP error messages are stored and
+displayed without the SMTP password or username.
+
+Controlled test email (respects `dry_run`; checks the whole configuration before any SMTP
+connection is attempted):
+
+```powershell
+cd backend
+python -m app.notifications test-email
+```
+
 ---
 
 ## Repository structure

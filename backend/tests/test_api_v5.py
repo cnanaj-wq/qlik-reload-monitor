@@ -50,7 +50,7 @@ def client(tmp_path):
                           status=S.ERROR if end is S.ERROR else S.SUCCESS,
                           message="ORA-00942" if end is S.ERROR else None))
     # Notification réelle (dry-run) pour le reload en erreur S2.
-    cfg = EmailConfig(enabled=True, dry_run=True, recipients=["${ALERT_EMAIL_RECIPIENT}"])
+    cfg = EmailConfig(enabled=True, dry_run=True, recipients=["alertes@exemple.fr"])
     NotificationService(db, [EmailNotifier(cfg)]).process_reload("S2")
     conn.close()
     app_cfg = AppConfig(database=DatabaseConfig(path=db),
@@ -122,7 +122,7 @@ def test_filtres_invalides(client, params):
 
 def test_notifications_d_un_reload(client):
     [n] = client.get("/api/reloads/S2/notifications").json()
-    assert n["status"] == "DRY_RUN" and n["recipient"] == "${ALERT_EMAIL_RECIPIENT}"
+    assert n["status"] == "DRY_RUN" and n["recipient"] == "alertes@exemple.fr"
     assert n["channel"] == "email" and n["subject"].startswith("#Error Reload QlikSense | Ventes_Detail")
     assert set(n) == {"id", "reload_id", "channel", "recipient", "status", "attempts",
                       "subject", "created_at", "sent_at", "error_message"}

@@ -9,13 +9,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getActiveReloads,
   getCurrentReload,
+  getEmailStatus,
   getHealth,
   getReload,
   getReloadEvents,
 } from "../api/client";
 import { openReloadStream, type EventSourceFactory, type ReloadStream } from "../api/stream";
 import { mergeEvents } from "../lib/timeline";
-import type { ApiStatus, Health, ReloadEvent, ReloadState, StreamStatus } from "../types";
+import type { ApiStatus, EmailStatus, Health, ReloadEvent, ReloadState, StreamStatus } from "../types";
 
 export interface LiveOptions {
   createSource?: EventSourceFactory;
@@ -32,6 +33,8 @@ export interface LiveReload {
   apiStatus: ApiStatus;
   streamStatus: StreamStatus;
   health: Health | null;
+  /** État de la configuration email (null tant qu'il n'est pas connu). */
+  emailStatus: EmailStatus | null;
   reload: ReloadState | null;
   events: ReloadEvent[];
   activeReloads: ReloadState[];
@@ -48,6 +51,7 @@ export function useLiveReload(options: LiveOptions = {}): LiveReload {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("loading");
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const [health, setHealth] = useState<Health | null>(null);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [reload, setReload] = useState<ReloadState | null>(null);
   const [events, setEvents] = useState<ReloadEvent[]>([]);
   const [activeReloads, setActiveReloads] = useState<ReloadState[]>([]);
@@ -88,6 +92,14 @@ export function useLiveReload(options: LiveOptions = {}): LiveReload {
   }, []);
 
   // ------------------------------------------------------------ relectures
+
+  const refreshEmailStatus = useCallback(async () => {
+    try {
+      setEmailStatus(await getEmailStatus());
+    } catch {
+      /* non bloquant : l'indicateur garde sa dernière valeur */
+    }
+  }, []);
 
   const refreshActive = useCallback(async () => {
     try {
@@ -178,12 +190,13 @@ export function useLiveReload(options: LiveOptions = {}): LiveReload {
         markUp();
         refreshDisplayed();
         void refreshActive();
+        void refreshEmailStatus();
       }
     } catch {
       markDown();
       later(() => void probe(), retryMs);
     }
-  }, [later, markDown, markUp, refreshActive, refreshDisplayed, retryMs]);
+  }, [later, markDown, markUp, refreshActive, refreshDisplayed, refreshEmailStatus, retryMs]);
 
   const openStream = useCallback(
     (afterSeq: number) => {
@@ -220,6 +233,7 @@ export function useLiveReload(options: LiveOptions = {}): LiveReload {
       if (evts.length) setLastEventAt(evts[evts.length - 1]!.timestamp);
       markUp();
       void refreshActive();
+      void refreshEmailStatus();
       const lastSeq = Math.max(current?.last_seq ?? 0, evts.at(-1)?.seq ?? 0);
       openStream(current ? lastSeq : h.last_seq);
     } catch {
@@ -227,7 +241,7 @@ export function useLiveReload(options: LiveOptions = {}): LiveReload {
       markDown();
       later(() => void bootstrap(), retryMs);
     }
-  }, [later, markDown, markUp, openStream, refreshActive, retryMs, showReload]);
+  }, [later, markDown, markUp, openStream, refreshActive, refreshEmailStatus, retryMs, showReload]);
 
   useEffect(() => {
     disposed.current = false;
@@ -259,6 +273,7 @@ export function useLiveReload(options: LiveOptions = {}): LiveReload {
     apiStatus,
     streamStatus,
     health,
+    emailStatus,
     reload,
     events,
     activeReloads,

@@ -78,6 +78,9 @@ def main(argv: list[str] | None = None) -> int:
                           stable_after_measures=cfg.monitoring.stable_after_measures,
                           on_event=reporter.on_event)
 
+    for problem in cfg.notifications.email.delivery_problems():
+        print(f"ATTENTION email : {problem} — les erreurs ne pourront pas être notifiées.",
+              file=sys.stderr)
     print(f"Scénario « {scenario.name} » — vitesse x{args.speed:g} — "
           f"{len(removed)} QVD de démo supprimé(s) dans {qvd_dir}\n")
     try:

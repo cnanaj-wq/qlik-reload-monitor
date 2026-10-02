@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ApiStatus, StreamStatus } from "../types";
+import type { ApiStatus, EmailStatus, StreamStatus } from "../types";
 
 export type ViewId = "live" | "history";
 
@@ -32,6 +32,33 @@ export function NavigationTabs({ view, onChange }: { view: ViewId; onChange: (v:
   );
 }
 
+const EMAIL_META: Record<EmailStatus["readiness"], { text: string; cls: string; title: string }> = {
+  disabled: { text: "Email : désactivé", cls: "text-muted", title: "Aucune alerte email ne sera envoyée." },
+  dry_run: {
+    text: "Email : dry-run",
+    cls: "text-muted",
+    title: "Les emails d'erreur sont construits et journalisés, mais rien n'est envoyé.",
+  },
+  ready: { text: "Email : actif", cls: "text-ok", title: "Un email est envoyé pour chaque reload terminé en erreur." },
+  incomplete: {
+    text: "Email : configuration incomplète",
+    cls: "text-warn",
+    title: "Envoi réel demandé mais impossible",
+  },
+};
+
+/** Mode des alertes email, pour ne jamais croire à tort qu'une erreur sera notifiée. */
+export function EmailStatusIndicator({ status }: { status: EmailStatus | null }) {
+  if (!status) return null;
+  const meta = EMAIL_META[status.readiness];
+  const title = status.problems.length ? `${meta.title} : ${status.problems.join(" ; ")}` : meta.title;
+  return (
+    <span className={`text-[12px] ${meta.cls}`} title={title} data-testid="email-status" data-readiness={status.readiness}>
+      {meta.text}
+    </span>
+  );
+}
+
 export function ConnectionStatus({ api, stream }: { api: ApiStatus; stream: StreamStatus }) {
   let text: string;
   let cls: string;
@@ -61,11 +88,12 @@ interface AppShellProps {
   api: ApiStatus;
   stream: StreamStatus;
   mode: string | null;
+  email?: EmailStatus | null;
   banner?: ReactNode;
   children: ReactNode;
 }
 
-export function AppShell({ view, onViewChange, api, stream, mode, banner, children }: AppShellProps) {
+export function AppShell({ view, onViewChange, api, stream, mode, email = null, banner, children }: AppShellProps) {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 flex items-center gap-6 border-b border-line bg-ink/95 px-6 py-2.5 backdrop-blur">
@@ -82,6 +110,7 @@ export function AppShell({ view, onViewChange, api, stream, mode, banner, childr
               MODE DEMO
             </span>
           )}
+          <EmailStatusIndicator status={email} />
           <span className="text-[12px] text-muted">Lecture seule</span>
           <ConnectionStatus api={api} stream={stream} />
         </div>

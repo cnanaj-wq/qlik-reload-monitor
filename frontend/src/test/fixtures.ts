@@ -109,7 +109,7 @@ export function notification(partial: Partial<NotificationRecord> = {}): Notific
     id: 1,
     reload_id: "R1",
     channel: "email",
-    recipient: "${ALERT_EMAIL_RECIPIENT}",
+    recipient: "alertes@exemple.fr",
     status: "SENT",
     attempts: 1,
     subject: "#Error Reload QlikSense | VENTES | 01/10/2026 22:47",

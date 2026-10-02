@@ -1,5 +1,6 @@
 // Accès HTTP à l'API (lecture seule). Aucun composant n'appelle fetch() directement.
 import type {
+  EmailStatus,
   Health,
   HistoryFilters,
   NotificationRecord,
@@ -62,6 +63,9 @@ async function request<T>(path: string, query?: Query, signal?: AbortSignal): Pr
 const enc = encodeURIComponent;
 
 export const getHealth = (signal?: AbortSignal) => request<Health>("/health", undefined, signal);
+
+export const getEmailStatus = (signal?: AbortSignal) =>
+  request<EmailStatus>("/api/notifications/status", undefined, signal);
 
 export const getCurrentReload = (signal?: AbortSignal) =>
   request<ReloadState | null>("/api/reloads/current", undefined, signal);

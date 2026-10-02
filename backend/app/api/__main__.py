@@ -19,6 +19,14 @@ from .app import create_app
 DEFAULT_CONFIG = Path(__file__).resolve().parents[3] / "config.yaml"
 
 
+_EMAIL_LABELS = {
+    "disabled": "désactivé",
+    "dry_run": "dry-run (messages construits, rien n'est envoyé)",
+    "ready": "envoi réel actif",
+    "incomplete": "envoi réel demandé mais configuration incomplète",
+}
+
+
 def _is_loopback(host: str) -> bool:
     if host == "localhost":
         return True
@@ -50,6 +58,16 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Qlik Reload Monitor API — http://{host}:{port}  (docs : /docs)")
     print(f"Base SQLite : {cfg.database.path}")
+    dist = cfg.server.frontend_dist
+    if (dist / "index.html").is_file():
+        print(f"Interface   : http://{host}:{port}/  (servie depuis {dist})")
+    else:
+        print(f"Interface   : non servie — {dist / 'index.html'} introuvable "
+              "(lancer « npm run build » dans frontend/)", file=sys.stderr)
+    email = cfg.notifications.email
+    print(f"Email       : {_EMAIL_LABELS[email.readiness]}")
+    for problem in email.delivery_problems():
+        print(f"ATTENTION email : {problem}", file=sys.stderr)
     # Les flux SSE ne se terminent jamais d'eux-mêmes : sans délai maximal, un arrêt
     # (Ctrl+C) attendrait indéfiniment la fermeture des navigateurs connectés.
     uvicorn.run(create_app(cfg), host=host, port=port, log_level="info",
