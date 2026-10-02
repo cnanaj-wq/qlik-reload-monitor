@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { PAGE_SIZE } from "../api/client";
 import { EMPTY_FILTERS, useReloadHistory } from "../hooks/useReloadHistory";
-import { fmtBytes, fmtDateTime, fmtDuration, fmtInt } from "../lib/format";
+import { useNow } from "../hooks/useNow";
+import { fmtBytes, fmtDateTime, fmtDuration, fmtInt, parseLocal } from "../lib/format";
 import { PLATFORM_META } from "../lib/status";
 import type { HistoryFilters, ReloadSummary } from "../types";
 import { PlatformBadge, StatusBadge } from "./Badges";
@@ -12,6 +13,22 @@ import { EmptyState, ErrorState, LoadingState } from "./States";
 
 const COLS =
   "grid grid-cols-[1.25rem_10.5rem_minmax(0,1fr)_7.5rem_5.5rem_8rem_7rem] items-center gap-x-4";
+
+/** Durée d'un reload : définitive s'il est terminé, écoulée (mise à jour chaque seconde) sinon. */
+function DurationCell({ reload: r }: { reload: ReloadSummary }) {
+  const running = r.status === "RUNNING" || r.duration_ms === null;
+  const now = useNow(running);
+  if (!running) return <>{fmtDuration(r.duration_ms ?? 0)}</>;
+  const start = parseLocal(r.started_at).getTime();
+  return (
+    <span title="Reload en cours : durée écoulée, non définitive">
+      <span className="text-run">en cours</span>
+      {!Number.isNaN(start) && (
+        <span className="block text-[12px] text-muted">{fmtDuration(Math.max(0, now.getTime() - start))}</span>
+      )}
+    </span>
+  );
+}
 
 interface RowProps {
   reload: ReloadSummary;
@@ -39,7 +56,7 @@ export const ReloadHistoryRow = memo(function ReloadHistoryRow({ reload: r, open
           <span className="truncate font-medium">{r.app_name}</span>
         </span>
         <span><StatusBadge status={r.status} /></span>
-        <span className="num text-right">{r.duration_ms !== null ? fmtDuration(r.duration_ms) : "en cours"}</span>
+        <span className="num text-right"><DurationCell reload={r} /></span>
         <span className="num text-right" title={r.status === "RUNNING" ? "Total disponible en fin de reload" : undefined}>
           {r.status === "RUNNING" ? "—" : fmtInt(r.total_rows)}
         </span>
@@ -170,7 +187,12 @@ export function RecentReloads({ tick, onOpen }: { tick: number; onOpen: (id: str
               <span><StatusBadge status={r.status} /></span>
               <span className="num text-right">{r.duration_ms !== null ? fmtDuration(r.duration_ms) : "en cours"}</span>
               <span className="num text-right">{r.status === "RUNNING" ? "—" : `${fmtInt(r.total_rows)} lignes`}</span>
-              <span className="num text-right text-muted">{r.qvd_count ? fmtBytes(r.qvd_bytes) : "—"}</span>
+              <span
+                className="num text-right text-muted"
+                title={r.status === "RUNNING" ? "Volume QVD disponible en fin de reload" : undefined}
+              >
+                {r.status !== "RUNNING" && r.qvd_count ? fmtBytes(r.qvd_bytes) : "—"}
+              </span>
             </button>
           </li>
         ))}
